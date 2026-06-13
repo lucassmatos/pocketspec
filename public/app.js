@@ -101,10 +101,10 @@ function listItem(href, icon, label, meta) {
 async function renderHome() {
   const roots = await getRoots();
   renderBreadcrumb(null, null, '', false);
-  contentEl.innerHTML = '<h1 class="page-title">Documentos</h1>';
+  contentEl.innerHTML = '<h1 class="page-title">Documents</h1>';
   if (!roots.length) {
     contentEl.insertAdjacentHTML('beforeend',
-      '<p class="empty">Nenhum path cadastrado.<br>Use <code>node server.js add &lt;path&gt;</code></p>');
+      '<p class="empty">No folders yet.<br>Use <code>pocketspec add &lt;folder&gt;</code></p>');
     return;
   }
   const ul = document.createElement('ul');
@@ -124,13 +124,13 @@ function formatSize(bytes) {
 async function renderFolder(root, relPath) {
   const roots = await getRoots();
   const rootInfo = roots.find((r) => r.id === root);
-  if (!rootInfo) throw new Error('root não cadastrado');
+  if (!rootInfo) throw new Error('root not found');
   const data = await fetchJson(`/api/list?root=${root}&path=${encodeURIComponent(relPath)}`);
   renderBreadcrumb(rootInfo.name, root, relPath, false);
   contentEl.innerHTML = '';
 
   if (!data.dirs.length && !data.files.length) {
-    contentEl.innerHTML = '<p class="empty">Pasta vazia (nenhum .md)</p>';
+    contentEl.innerHTML = '<p class="empty">Empty folder (no .md files)</p>';
     return;
   }
   const ul = document.createElement('ul');
@@ -151,7 +151,7 @@ async function renderFolder(root, relPath) {
 async function renderDoc(root, relPath) {
   const roots = await getRoots();
   const rootInfo = roots.find((r) => r.id === root);
-  if (!rootInfo) throw new Error('root não cadastrado');
+  if (!rootInfo) throw new Error('root not found');
   const res = await fetch(`/api/doc?root=${root}&path=${encodeURIComponent(relPath)}`);
   if (!res.ok) throw new Error(await res.text());
   const md = await res.text();
@@ -246,7 +246,7 @@ function commentBubble(comment, note) {
     del.className = 'comment-delete';
     del.textContent = '✕';
     del.addEventListener('click', async () => {
-      if (!confirm('Apagar este comentário?')) return;
+      if (!confirm('Delete this comment?')) return;
       await fetchJson(commentsUrl(`&id=${comment.id}`), { method: 'DELETE' });
       await refreshComments();
     });
@@ -290,11 +290,11 @@ async function refreshComments() {
   if (generals.length || orphans.length) {
     const h = document.createElement('h2');
     h.className = 'general-comments-title';
-    h.textContent = 'Comentários gerais';
+    h.textContent = 'General comments';
     general.appendChild(h);
     for (const c of generals) general.appendChild(commentBubble(c));
     for (const c of orphans) {
-      general.appendChild(commentBubble(c, `sobre: “${c.anchor.snippet.slice(0, 40)}…”`));
+      general.appendChild(commentBubble(c, `on: “${c.anchor.snippet.slice(0, 40)}…”`));
     }
   }
 }
@@ -332,10 +332,10 @@ function ensureSheet() {
   sheet.hidden = true;
   sheet.innerHTML = `
     <div class="sheet-context" id="sheet-context"></div>
-    <textarea id="sheet-text" rows="3" placeholder="Escreva seu comentário…"></textarea>
+    <textarea id="sheet-text" rows="3" placeholder="Write your comment…"></textarea>
     <div class="sheet-buttons">
-      <button class="btn" id="sheet-cancel">Cancelar</button>
-      <button class="btn primary" id="sheet-send">Comentar</button>
+      <button class="btn" id="sheet-cancel">Cancel</button>
+      <button class="btn primary" id="sheet-send">Comment</button>
     </div>`;
   document.body.appendChild(sheet);
   sheet.querySelector('#sheet-cancel').addEventListener('click', closeSheet);
@@ -386,7 +386,7 @@ function onBlockTap(e) {
   const snippet = blockSnippet(block);
   openSheet(
     { index: Number(block.getAttribute('data-bi')), snippet },
-    `Comentando: “${snippet.slice(0, 60)}${snippet.length > 60 ? '…' : ''}”`,
+    `Commenting on: “${snippet.slice(0, 60)}${snippet.length > 60 ? '…' : ''}”`,
   );
 }
 
@@ -397,9 +397,9 @@ function ensureFab() {
   if (fab) { fab.hidden = false; return; }
   fab = document.createElement('button');
   fab.id = 'fab';
-  fab.title = 'Comentário geral';
+  fab.title = 'General comment';
   fab.textContent = '💬';
-  fab.addEventListener('click', () => openSheet(null, 'Comentário geral sobre o documento'));
+  fab.addEventListener('click', () => openSheet(null, 'General comment on the document'));
   document.body.appendChild(fab);
 }
 
@@ -414,7 +414,7 @@ function renderActions(isDoc) {
   if (!isDoc) return;
   const edit = document.createElement('button');
   edit.className = 'topbtn';
-  edit.title = 'Editar documento';
+  edit.title = 'Edit document';
   edit.textContent = '✏️';
   edit.addEventListener('click', openEditor);
   actionsEl.appendChild(edit);
@@ -438,14 +438,14 @@ async function openEditor() {
   // buttons live in the sticky topbar so they never scroll out of view
   const cancel = document.createElement('button');
   cancel.className = 'btn';
-  cancel.textContent = 'Cancelar';
+  cancel.textContent = 'Cancel';
   cancel.addEventListener('click', route);
   const save = document.createElement('button');
   save.className = 'btn primary';
-  save.textContent = 'Salvar';
+  save.textContent = 'Save';
   save.addEventListener('click', async () => {
     save.disabled = true;
-    save.textContent = 'Salvando…';
+    save.textContent = 'Saving…';
     try {
       await fetchJson(`/api/save?root=${root}&path=${encodeURIComponent(relPath)}`, {
         method: 'POST',
@@ -454,9 +454,9 @@ async function openEditor() {
       });
       await route();
     } catch (err) {
-      alert('Erro ao salvar: ' + err.message);
+      alert('Error saving: ' + err.message);
       save.disabled = false;
-      save.textContent = 'Salvar';
+      save.textContent = 'Save';
     }
   });
   actionsEl.appendChild(cancel);
@@ -479,7 +479,7 @@ async function route() {
     contentEl.innerHTML = '';
     const p = document.createElement('p');
     p.className = 'error';
-    p.textContent = 'Erro: ' + err.message;
+    p.textContent = 'Error: ' + err.message;
     contentEl.appendChild(p);
   }
 }

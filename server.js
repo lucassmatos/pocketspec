@@ -32,16 +32,16 @@ function saveConfig(config) {
 // With no folder arguments, falls back to roots saved via `add`.
 
 function printHelp() {
-  console.log(`pocketspec — leia seus docs markdown no celular, comente, deixe o agente ler de volta
+  console.log(`pocketspec — read your markdown docs on your phone, comment, let your agent read back
 
-Uso:
-  pocketspec [pasta ...] [--port N] [--read-only]
-  pocketspec add <pasta> [nome]    cadastra uma pasta persistente
-  pocketspec list                   lista as pastas cadastradas
+Usage:
+  pocketspec [folder ...] [--port N] [--read-only]
+  pocketspec add <folder> [name]    register a persistent folder
+  pocketspec list                    list registered folders
 
-Sem pasta nos argumentos, usa as pastas salvas via 'add'.
-  --port N        porta inicial (padrão 4321; tenta a próxima livre se ocupada)
-  --read-only     desliga edição e comentários (só leitura)`);
+With no folder arguments, serves the folders saved via 'add'.
+  --port N        starting port (default 4321; tries the next free one if taken)
+  --read-only     disable editing and comments (read-only)`);
 }
 
 const argv = process.argv.slice(2);
@@ -64,22 +64,22 @@ const command = positional[0];
 if (command === 'add') {
   const target = positional[1];
   if (!target) {
-    console.error('Uso: pocketspec add <pasta> [nome]');
+    console.error('Usage: pocketspec add <folder> [name]');
     process.exit(1);
   }
   const resolved = path.resolve(target);
   if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-    console.error(`Pasta não existe: ${resolved}`);
+    console.error(`Folder does not exist: ${resolved}`);
     process.exit(1);
   }
   const config = loadConfig();
   if (config.roots.some((r) => r.path === resolved)) {
-    console.error(`Pasta já cadastrada: ${resolved}`);
+    console.error(`Folder already registered: ${resolved}`);
     process.exit(1);
   }
   config.roots.push({ name: positional[2] || path.basename(resolved), path: resolved });
   saveConfig(config);
-  console.log(`Cadastrada: ${resolved}`);
+  console.log(`Registered: ${resolved}`);
   process.exit(0);
 } else if (command === 'list') {
   for (const [i, root] of loadConfig().roots.entries()) {
@@ -95,7 +95,7 @@ if (positional.length) {
   for (const p of positional) {
     const resolved = path.resolve(p);
     if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-      console.error(`Pasta não existe: ${resolved}`);
+      console.error(`Folder does not exist: ${resolved}`);
       process.exit(1);
     }
     RUNTIME_ROOTS.push({ name: path.basename(resolved), path: resolved });
@@ -154,7 +154,7 @@ function readBody(req, limit = 5 * 1024 * 1024) {
     req.on('data', (chunk) => {
       size += chunk.length;
       if (size > limit) {
-        reject(new Error('payload muito grande'));
+        reject(new Error('payload too large'));
         req.destroy();
         return;
       }
@@ -220,20 +220,20 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/comments' || pathname === '/api/save') {
       const rootIndex = Number(url.searchParams.get('root'));
       const relPath = url.searchParams.get('path') || '';
-      if (!Number.isInteger(rootIndex)) return send(res, 400, 'root inválido');
+      if (!Number.isInteger(rootIndex)) return send(res, 400, 'invalid root');
       const abs = resolveInRoot(rootIndex, relPath);
       if (!abs || !abs.toLowerCase().endsWith('.md') || !fs.statSync(abs).isFile()) {
-        return send(res, 404, 'documento não encontrado');
+        return send(res, 404, 'document not found');
       }
 
       if (READ_ONLY && req.method !== 'GET') {
-        return send(res, 403, 'modo somente leitura (--read-only)');
+        return send(res, 403, 'read-only mode (--read-only)');
       }
 
       if (pathname === '/api/save') {
         if (req.method !== 'POST') return send(res, 405, 'use POST');
         const body = JSON.parse(await readBody(req));
-        if (typeof body.content !== 'string') return send(res, 400, 'content ausente');
+        if (typeof body.content !== 'string') return send(res, 400, 'missing content');
         fs.writeFileSync(abs, body.content);
         return sendJson(res, { ok: true });
       }
@@ -242,7 +242,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'POST') {
         const body = JSON.parse(await readBody(req));
         const text = typeof body.text === 'string' ? body.text.trim() : '';
-        if (!text) return send(res, 400, 'comentário vazio');
+        if (!text) return send(res, 400, 'empty comment');
         const data = loadComments(abs);
         const comment = {
           id: crypto.randomUUID(),
@@ -261,30 +261,30 @@ const server = http.createServer(async (req, res) => {
         const data = loadComments(abs);
         const before = data.comments.length;
         data.comments = data.comments.filter((c) => c.id !== id);
-        if (data.comments.length === before) return send(res, 404, 'comentário não encontrado');
+        if (data.comments.length === before) return send(res, 404, 'comment not found');
         saveComments(abs, data);
         return sendJson(res, { ok: true });
       }
-      return send(res, 405, 'método não suportado');
+      return send(res, 405, 'method not supported');
     }
 
     if (pathname === '/api/list' || pathname === '/api/doc' || pathname === '/api/raw') {
       const rootIndex = Number(url.searchParams.get('root'));
       const relPath = url.searchParams.get('path') || '';
-      if (!Number.isInteger(rootIndex)) return send(res, 400, 'root inválido');
+      if (!Number.isInteger(rootIndex)) return send(res, 400, 'invalid root');
       const abs = resolveInRoot(rootIndex, relPath);
-      if (!abs) return send(res, 404, 'não encontrado');
+      if (!abs) return send(res, 404, 'not found');
 
       if (pathname === '/api/list') {
-        if (!fs.statSync(abs).isDirectory()) return send(res, 400, 'não é uma pasta');
+        if (!fs.statSync(abs).isDirectory()) return send(res, 400, 'not a folder');
         return sendJson(res, listDir(abs));
       }
       if (pathname === '/api/doc') {
-        if (!abs.toLowerCase().endsWith('.md')) return send(res, 400, 'só arquivos .md');
+        if (!abs.toLowerCase().endsWith('.md')) return send(res, 400, '.md files only');
         return send(res, 200, fs.readFileSync(abs, 'utf8'), MIME['.md']);
       }
       // /api/raw — images and other assets referenced by docs
-      if (!fs.statSync(abs).isFile()) return send(res, 400, 'não é um arquivo');
+      if (!fs.statSync(abs).isFile()) return send(res, 400, 'not a file');
       const type = MIME[path.extname(abs).toLowerCase()] || 'application/octet-stream';
       return send(res, 200, fs.readFileSync(abs), type);
     }
@@ -301,7 +301,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, fs.readFileSync(path.join(PUBLIC_DIR, 'index.html')), MIME['.html']);
   } catch (err) {
     console.error(err);
-    return send(res, 500, 'erro interno');
+    return send(res, 500, 'internal error');
   }
 });
 
@@ -321,15 +321,15 @@ server.on('listening', () => {
   server.removeAllListeners('error');
   const port = server.address().port;
   const roots = currentRoots();
-  console.log(`pocketspec rodando!${READ_ONLY ? '  (somente leitura)' : ''}\n`);
-  console.log(`  Local:  http://localhost:${port}`);
+  console.log(`pocketspec running!${READ_ONLY ? '  (read-only)' : ''}\n`);
+  console.log(`  Local:    http://localhost:${port}`);
   for (const addr of lanAddresses()) {
-    console.log(`  Rede:   http://${addr}:${port}   ← use este no celular`);
+    console.log(`  Network:  http://${addr}:${port}   ← open this on your phone`);
   }
   if (!roots.length) {
-    console.log('\nNenhuma pasta. Passe uma pasta: pocketspec <pasta>  (ou cadastre com: pocketspec add <pasta>)');
+    console.log('\nNo folders. Pass a folder: pocketspec <folder>  (or register one: pocketspec add <folder>)');
   } else {
-    console.log('\nPastas:');
+    console.log('\nFolders:');
     for (const root of roots) console.log(`  - ${root.name}: ${root.path}`);
   }
 });
@@ -337,7 +337,7 @@ server.on('listening', () => {
 function startListening(port, attemptsLeft) {
   server.once('error', (err) => {
     if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
-      console.log(`  porta ${port} ocupada, tentando ${port + 1}…`);
+      console.log(`  port ${port} is busy, trying ${port + 1}…`);
       startListening(port + 1, attemptsLeft - 1);
     } else {
       console.error(err.message);
