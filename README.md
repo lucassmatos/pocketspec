@@ -4,7 +4,9 @@
 
 Point your AI agent (Claude, Cursor, whatever) at a folder, let it write specs while you do something else, and follow along from your phone over your local network. Spot a vague paragraph? Tap it and comment. The comment lands in a `.comments` file next to the doc — which the agent reads back to revise. The AI doc review loop, on the go.
 
-<!-- TODO: ~20s GIF here — phone opening the doc → tapping a paragraph + typing a comment → the agent's terminal reading the .comments back. This is the #1 marketing asset; worth doing well. -->
+<p align="center">
+  <img src="https://raw.githubusercontent.com/lucassmatos/pocketspec/main/docs/demo.gif" alt="pocketspec demo: read a spec on your phone, tap a paragraph to comment, and the agent reads the comment back" width="320">
+</p>
 
 ## Quick start
 
