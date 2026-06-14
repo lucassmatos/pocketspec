@@ -1,13 +1,23 @@
 {
   "name": "pocketspec",
   "version": "0.1.0",
-  "description": "Leia seus docs markdown no celular pela rede local, comente tocando no parágrafo, e deixe seu agente de IA ler os comentários de volta.",
+  "description": "Read your markdown docs on your phone over the local network, comment by tapping a paragraph, and let your AI agent read the comments back.",
   "bin": {
     "pocketspec": "server.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucassmatos/pocketspec.git"
+  },
+  "homepage": "https://github.com/lucassmatos/pocketspec#readme",
+  "bugs": {
+    "url": "https://github.com/lucassmatos/pocketspec/issues"
+  },
+  "author": "Lucas Monteiro",
   "files": [
     "server.js",
-    "public/"
+    "public/",
+    "CLAUDE.md"
   ],
   "engines": {
     "node": ">=18"

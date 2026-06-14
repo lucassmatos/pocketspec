@@ -41,15 +41,19 @@ Usage:
 
 With no folder arguments, serves the folders saved via 'add'.
   --port N        starting port (default 4321; tries the next free one if taken)
-  --read-only     disable editing and comments (read-only)`);
+  --read-only     disable editing and comments (read-only)
+  --password P    require a password (HTTP Basic Auth)
+                  safer: set POCKETSPEC_PASSWORD instead of passing it on the CLI`);
 }
 
 const argv = process.argv.slice(2);
-const options = { port: undefined, readOnly: false };
+const options = { port: undefined, readOnly: false, password: undefined };
 const positional = [];
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i];
   if (arg === '--read-only') options.readOnly = true;
+  else if (arg === '--password') options.password = argv[++i];
+  else if (arg.startsWith('--password=')) options.password = arg.slice('--password='.length);
   else if (arg === '--port') options.port = Number(argv[++i]);
   else if (arg.startsWith('--port=')) options.port = Number(arg.slice('--port='.length));
   else if (arg === '--help' || arg === '-h') { printHelp(); process.exit(0); }
@@ -59,6 +63,7 @@ for (let i = 0; i < argv.length; i++) {
 
 const PORT_PREFERRED = options.port || (process.env.PORT ? Number(process.env.PORT) : 4321);
 const READ_ONLY = options.readOnly;
+const PASSWORD = options.password != null ? String(options.password) : (process.env.POCKETSPEC_PASSWORD || null);
 const command = positional[0];
 
 if (command === 'add') {
@@ -132,6 +137,20 @@ function send(res, status, body, type) {
 
 function sendJson(res, data) {
   send(res, 200, JSON.stringify(data), 'application/json; charset=utf-8');
+}
+
+// HTTP Basic Auth gate. Returns true when no password is set, or when the
+// request carries the right one (constant-time compare). Username is ignored.
+function checkAuth(req) {
+  if (!PASSWORD) return true;
+  const header = req.headers.authorization || '';
+  const m = /^Basic (.+)$/.exec(header);
+  if (!m) return false;
+  let decoded;
+  try { decoded = Buffer.from(m[1], 'base64').toString('utf8'); } catch { return false; }
+  const given = Buffer.from(decoded.slice(decoded.indexOf(':') + 1));
+  const expected = Buffer.from(PASSWORD);
+  return given.length === expected.length && crypto.timingSafeEqual(given, expected);
 }
 
 // Resolves a relative path inside a registered root, rejecting traversal.
@@ -209,6 +228,15 @@ const server = http.createServer(async (req, res) => {
   const pathname = decodeURIComponent(url.pathname);
 
   try {
+    if (!checkAuth(req)) {
+      res.writeHead(401, {
+        'WWW-Authenticate': 'Basic realm="pocketspec", charset="UTF-8"',
+        'Content-Type': 'text/plain; charset=utf-8',
+      });
+      res.end('authentication required');
+      return;
+    }
+
     if (pathname === '/api/roots') {
       return sendJson(res, currentRoots().map((r, i) => ({ id: i, name: r.name, path: r.path })));
     }
@@ -321,7 +349,7 @@ server.on('listening', () => {
   server.removeAllListeners('error');
   const port = server.address().port;
   const roots = currentRoots();
-  console.log(`pocketspec running!${READ_ONLY ? '  (read-only)' : ''}\n`);
+  console.log(`pocketspec running!${READ_ONLY ? '  (read-only)' : ''}${PASSWORD ? '  (password protected)' : ''}\n`);
   console.log(`  Local:    http://localhost:${port}`);
   for (const addr of lanAddresses()) {
     console.log(`  Network:  http://${addr}:${port}   ← open this on your phone`);

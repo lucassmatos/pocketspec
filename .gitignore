@@ -1,11 +1,11 @@
-# local state — pastas cadastradas são pessoais, não versionar
+# local state — registered folders are personal, don't version them
 config.json
 
 node_modules/
 *.log
 .DS_Store
 
-# agent/tooling state that lives inside the project dir
+# agent/tooling state that lives inside the project directory
 .gstack/
 .remember/
 *.tgz
