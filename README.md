@@ -34,7 +34,18 @@ No install — `npx` fetches and runs it.
 ```bash
 npx pocketspec ~/docs --port 8080     # starting port (tries the next free one if taken)
 npx pocketspec ~/docs --read-only     # read-only: no editing, no commenting
+npx pocketspec ~/docs --password hunter2   # require a password (HTTP Basic Auth)
 ```
+
+For the password, prefer the env var so it doesn't end up in your shell history:
+
+```bash
+POCKETSPEC_PASSWORD=hunter2 npx pocketspec ~/docs
+```
+
+> If `npm` ever warns `Unknown cli config "--port"`, it's harmless (npm is just
+> noisy about forwarding flags). To sidestep it, set the port via env instead:
+> `PORT=8080 npx pocketspec ~/docs`.
 
 Persistent folders (instead of passing paths every time):
 
@@ -50,7 +61,42 @@ pocketspec has **no authentication** and, by default, exposes write endpoints (e
 
 - **Use it only on a trusted network** (your home, not a coffee-shop Wi-Fi).
 - Want read-only, no write risk? Use `--read-only`.
-- **Want access from outside your network?** Do NOT expose this to the open internet. Use a peer-to-peer VPN like [Tailscale](https://tailscale.com): install it on your laptop and phone, then reach it via the Tailscale IP from anywhere — with nothing publicly exposed.
+- Want a basic gate even on your LAN? Use `--password` (see [Options](#options)).
+- **Want access from outside your network?** Do NOT port-forward this or put it behind a public reverse proxy — it has no auth by default. Use a peer-to-peer VPN like [Tailscale](https://tailscale.com) instead (next section): your phone reaches your laptop directly, with nothing publicly exposed.
+
+## Access from anywhere with Tailscale
+
+[Tailscale](https://tailscale.com) puts your laptop and phone on the same private network (a "tailnet"), so you can read your docs from the train, the office, anywhere — without exposing anything to the public internet. It's free for personal use.
+
+1. **Install it on your laptop** (the machine running pocketspec):
+   - macOS/Windows: download from [tailscale.com/download](https://tailscale.com/download).
+   - Linux: `curl -fsSL https://tailscale.com/install.sh | sh`
+   - Sign in (Google/GitHub/email) — this creates your tailnet.
+
+2. **Install the Tailscale app on your phone** and sign in with the **same account**. That's what links the two devices.
+
+3. **Find your laptop's Tailscale address.** On the laptop:
+   ```bash
+   tailscale ip -4        # e.g. 100.101.102.103
+   ```
+   Or use the MagicDNS name (Tailscale admin console → enable MagicDNS): something like `my-laptop.tail1234.ts.net`.
+
+4. **Start pocketspec** as usual:
+   ```bash
+   npx pocketspec ~/docs
+   ```
+   It binds to all interfaces, so the Tailscale address works automatically — no extra flags.
+
+5. **Open it on your phone** (with Tailscale on), using the Tailscale IP and the port pocketspec printed:
+   ```
+   http://100.101.102.103:4321
+   ```
+   or `http://my-laptop.tail1234.ts.net:4321` with MagicDNS.
+
+Tips:
+- It works over cellular too — you don't need to be on the same Wi-Fi once both devices are in the tailnet.
+- Add `--password` (or `POCKETSPEC_PASSWORD`) for a second layer; anyone on your tailnet can otherwise reach it.
+- The laptop has to be awake and running pocketspec. If your phone can't connect, check that both devices show as "Connected" in the Tailscale app.
 
 ## How it works
 
