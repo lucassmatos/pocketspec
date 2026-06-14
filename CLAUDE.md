@@ -55,8 +55,10 @@ Everything else falls through to static files in `public/`, then to `index.html`
 ### Security invariants (do not regress these)
 
 - **Path traversal**: every file access goes through `resolveInRoot(rootIndex, relPath)`, which resolves against the root's realpath and rejects anything not inside it — checked both before and after `realpathSync` (symlink escape). New file-serving endpoints MUST use it.
+- **DNS rebinding**: `hostAllowed(req)` runs first in the handler and 403s any request whose `Host` isn't loopback/LAN/Tailscale (or an explicit `--host`/`POCKETSPEC_HOST`). Don't move it below body reads or FS access.
 - **Read-only**: when `READ_ONLY`, any non-GET on `/api/comments` and `/api/save` returns 403.
-- **Auth**: `checkAuth` gates *every* request (constant-time compare, username ignored). It's the first thing in the handler.
+- **Auth**: `checkAuth` gates *every* request (constant-time compare, username ignored). Runs right after the host check.
+- **XSS**: the client renders docs with `DOMPurify.sanitize(marked.parse(md))` (`public/app.js`). Docs may be untrusted — never inject raw markdown HTML. Every response also sends `X-Content-Type-Options: nosniff`.
 - The server binds `0.0.0.0` by design (LAN access) — there is no auth by default. This is intentional; the README documents the trust-the-network / Tailscale model.
 
 ### Comment anchoring

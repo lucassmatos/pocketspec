@@ -160,7 +160,9 @@ async function renderDoc(root, relPath) {
 
   const doc = document.createElement('article');
   doc.className = 'doc';
-  doc.innerHTML = marked.parse(md);
+  // Sanitize: docs can come from untrusted sources (a cloned repo's README, a
+  // file someone sent you). Never inject raw markdown HTML into the DOM.
+  doc.innerHTML = DOMPurify.sanitize(marked.parse(md));
 
   // Rewrite relative links: .md links navigate in-app, other assets go through /api/raw
   const docDir = relPath.split('/').slice(0, -1).join('/');

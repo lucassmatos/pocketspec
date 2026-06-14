@@ -100,10 +100,12 @@ Tips:
 
 ## How it works
 
-- Zero npm dependencies. Node stdlib on the server; [`marked`](https://github.com/markedjs/marked) (MIT) vendored in `public/marked.min.js` rendering in the browser, so it works even with no internet on your phone.
+- Zero npm dependencies. Node stdlib on the server; [`marked`](https://github.com/markedjs/marked) (MIT) and [`DOMPurify`](https://github.com/cure53/DOMPurify) (Apache-2.0/MPL-2.0) vendored in `public/`, rendering in the browser, so it works even with no internet on your phone.
 - Lists only folders and `.md` files (dotfiles ignored). Images referenced by docs are served via `/api/raw`.
 - Hash-based navigation (`#/0/folder/doc.md`), so your phone's back button works. PWA: you can "Add to Home Screen" and it opens as an app.
-- Path-traversal protection: it never serves anything outside the folders you pass.
+- **Path-traversal protection**: it never serves anything outside the folders you pass.
+- **DNS-rebinding protection**: only answers requests whose `Host` is a loopback/LAN/Tailscale address (add your own with `--host`), so a malicious website can't reach your local server.
+- **Rendered markdown is sanitized** (DOMPurify), so a doc from an untrusted source can't run scripts in your browser.
 
 ## Run from source (dev)
 
@@ -114,4 +116,4 @@ node server.js --help
 
 ## License
 
-MIT. `marked` is also MIT (its license is kept in the vendored file).
+MIT. Vendored libraries keep their own licenses in their files: `marked` (MIT) and `DOMPurify` (Apache-2.0 / MPL-2.0).

@@ -60,17 +60,22 @@ With no folder arguments, serves the folders saved via 'add'.
   --port N        starting port (default 4321; tries the next free one if taken)
   --read-only     disable editing and comments (read-only)
   --password P    require a password (HTTP Basic Auth)
-                  safer: set POCKETSPEC_PASSWORD instead of passing it on the CLI`);
+                  safer: set POCKETSPEC_PASSWORD instead of passing it on the CLI
+  --host H        allow an extra Host header (repeatable) on top of the built-in
+                  loopback/LAN/Tailscale allowlist; use for a custom hostname.
+                  Also: POCKETSPEC_HOST=h1,h2`);
 }
 
 const argv = process.argv.slice(2);
-const options = { port: undefined, readOnly: false, password: undefined };
+const options = { port: undefined, readOnly: false, password: undefined, hosts: [] };
 const positional = [];
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i];
   if (arg === '--read-only') options.readOnly = true;
   else if (arg === '--password') options.password = argv[++i];
   else if (arg.startsWith('--password=')) options.password = arg.slice('--password='.length);
+  else if (arg === '--host') options.hosts.push(argv[++i]);
+  else if (arg.startsWith('--host=')) options.hosts.push(arg.slice('--host='.length));
   else if (arg === '--port') options.port = Number(argv[++i]);
   else if (arg.startsWith('--port=')) options.port = Number(arg.slice('--port='.length));
   else if (arg === '--help' || arg === '-h') { printHelp(); process.exit(0); }
@@ -81,6 +86,12 @@ for (let i = 0; i < argv.length; i++) {
 const PORT_PREFERRED = options.port || (process.env.PORT ? Number(process.env.PORT) : 4321);
 const READ_ONLY = options.readOnly;
 const PASSWORD = options.password != null ? String(options.password) : (process.env.POCKETSPEC_PASSWORD || null);
+// Extra Host header values the user explicitly trusts (custom hostname / reverse proxy).
+const EXTRA_HOSTS = new Set(
+  [...options.hosts, ...((process.env.POCKETSPEC_HOST || '').split(','))]
+    .map((h) => String(h).trim().toLowerCase())
+    .filter(Boolean)
+);
 const command = positional[0];
 
 if (command === 'add') {
@@ -154,6 +165,30 @@ function send(res, status, body, type) {
 
 function sendJson(res, data) {
   send(res, 200, JSON.stringify(data), 'application/json; charset=utf-8');
+}
+
+// Anti-DNS-rebinding guard. A malicious website can rebind its DNS to a
+// loopback/LAN IP and make same-origin requests to this server; the one thing
+// it can't forge is the Host header (the browser sends the name in the URL bar).
+// So we only answer requests whose Host is a loopback/LAN/Tailscale address, or
+// one the user explicitly trusted via --host / POCKETSPEC_HOST.
+function hostAllowed(req) {
+  const raw = (req.headers.host || '').trim().toLowerCase();
+  if (!raw) return false;
+  // Strip the port (handle bare IPv6 like [::1]:4321 too).
+  const host = raw.startsWith('[')
+    ? raw.slice(1, raw.indexOf(']'))
+    : raw.replace(/:\d+$/, '');
+  if (EXTRA_HOSTS.has(host) || EXTRA_HOSTS.has(raw)) return true;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+  if (host.endsWith('.localhost')) return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  // Tailscale: CGNAT range 100.64.0.0/10 and MagicDNS names.
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  if (host.endsWith('.ts.net')) return true;
+  return false;
 }
 
 // HTTP Basic Auth gate. Returns true when no password is set, or when the
@@ -245,6 +280,15 @@ const server = http.createServer(async (req, res) => {
   const pathname = decodeURIComponent(url.pathname);
 
   try {
+    // Defense against DNS rebinding — must run before anything reads the body
+    // or touches the filesystem.
+    if (!hostAllowed(req)) {
+      return send(res, 403, 'forbidden host (DNS rebinding protection); use --host to allow it');
+    }
+
+    // Don't let a browser MIME-sniff a doc/asset into executable content.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
     if (!checkAuth(req)) {
       res.writeHead(401, {
         'WWW-Authenticate': 'Basic realm="pocketspec", charset="UTF-8"',
