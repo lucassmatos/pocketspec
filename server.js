@@ -8,17 +8,34 @@ const os = require('os');
 const crypto = require('crypto');
 
 const ROOT_DIR = __dirname;
-const CONFIG_PATH = path.join(ROOT_DIR, 'config.json');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
+
+// Persist registered roots in the user's config dir, not inside the package —
+// when run via `npx`, the package dir is ephemeral and often read-only.
+const CONFIG_DIR = process.env.XDG_CONFIG_HOME
+  ? path.join(process.env.XDG_CONFIG_HOME, 'pocketspec')
+  : path.join(os.homedir(), '.config', 'pocketspec');
+const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
+// Older versions wrote config.json next to server.js; read it as a fallback.
+const LEGACY_CONFIG_PATH = path.join(ROOT_DIR, 'config.json');
 
 // ---------- config (persisted roots, used by the `add`/`list` subcommands) ----------
 
 function loadConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) return { roots: [] };
-  return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+  const src = fs.existsSync(CONFIG_PATH) ? CONFIG_PATH
+    : fs.existsSync(LEGACY_CONFIG_PATH) ? LEGACY_CONFIG_PATH
+    : null;
+  if (!src) return { roots: [] };
+  try {
+    const data = JSON.parse(fs.readFileSync(src, 'utf8'));
+    return { roots: Array.isArray(data.roots) ? data.roots : [] };
+  } catch {
+    return { roots: [] };
+  }
 }
 
 function saveConfig(config) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n');
 }
 
