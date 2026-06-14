@@ -16,13 +16,18 @@ node server.js --help
 
 node server.js add ~/docs "Name"   # register a persistent root
 node server.js list                # list registered roots
+node server.js install-skill       # install the agent skill (Claude + AGENTS.md)
+
+npm test                           # node --test (security tests in test/)
 
 node server.js ~/docs --port 8080  # starting port (falls back to next free port, 10 tries)
 node server.js ~/docs --read-only  # disable all writes (edit + comments)
 node server.js ~/docs --password P # HTTP Basic Auth; prefer POCKETSPEC_PASSWORD env var
 ```
 
-There is no build, lint, or test setup — it's plain Node + static files. Run the server and open the printed Network URL to verify changes.
+No build or lint step — it's plain Node + static files. Tests are zero-dep (`node --test`, in `test/`, not published). For UI changes, run the server and open the printed Network URL.
+
+The agent skill is canonical in `skill/SKILL.md` (bundled in the npm package, installed by `install-skill`). The repo no longer keeps a `.claude/skills/` copy — edit `skill/SKILL.md`.
 
 ## Architecture
 

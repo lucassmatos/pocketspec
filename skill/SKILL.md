@@ -37,7 +37,11 @@ you read comments back and revise  →  repeat
    if none exist, ask which folder to serve. Always resolve to an **absolute
    path**.
 
-2. **Start the server in the background** so it keeps serving across turns:
+2. **Heads-up on first run.** This downloads the `pocketspec` package from npm
+   via `npx` (~200 KB, cached after the first use; zero npm dependencies). Give
+   the user a one-line heads-up and proceed unless they object.
+
+3. **Start the server in the background** so it keeps serving across turns:
    ```bash
    npx -y pocketspec@latest /abs/path/to/docs
    ```
@@ -49,15 +53,25 @@ you read comments back and revise  →  repeat
    - Pass the folder as a **path argument** (e.g. `npx -y pocketspec@latest .`),
      not bare `npx pocketspec` — bare with no args serves only folders the user
      previously registered with `pocketspec add`.
+   - Port busy / want a specific one? Use `PORT=8080 npx -y pocketspec@latest
+     <folder>` (the `PORT` env avoids npm's noisy `--port` flag warning).
 
-3. **Send the URL to the user in chat.** Post the `Network:` URL prominently so
-   they can tap it on their phone, e.g.:
+4. **Send the URL to the user in chat,** with a short "best way to view" note.
+   Post the `Network:` URL prominently so they can tap it on their phone:
 
    > 📱 Open this on your phone (same Wi-Fi): **http://192.168.x.x:4321**
-   > Tap any paragraph to comment. ✏️ edits the doc, 💬 is a general comment.
-   > Tip: "Add to Home Screen" installs it like an app.
+   >
+   > For the best experience:
+   > - **"Add to Home Screen"** — it opens fullscreen like a native app (PWA),
+   >   no browser bars. Auto-matches your phone's light/dark mode.
+   > - **Tap any paragraph** to comment — your note appears right under it with a
+   >   marker bar on the passage.
+   > - **✏️ (top)** edits the raw markdown and saves; **💬 (floating)** leaves a
+   >   general comment not tied to a paragraph.
+   > - The **back button works** (folder ↔ doc), and it keeps working **offline**
+   >   once loaded. Rotate to landscape for wide tables or code blocks.
 
-4. **Run the review loop.** When the user says they've commented (or asks you to
+5. **Run the review loop.** When the user says they've commented (or asks you to
    check / "read my comments"):
    - Find every sidecar: `Glob` for `**/*.md.comments` under the served folder.
    - Each file is JSON: `{ "comments": [ { "text", "anchor", "ts" } ] }`.
@@ -71,7 +85,7 @@ you read comments back and revise  →  repeat
      deletes from the UI), or, if the user asks, remove resolved entries from
      the sidecar JSON.
 
-5. **Stop when done.** Kill the background server task once the review is over,
+6. **Stop when done.** Kill the background server task once the review is over,
    or leave it running if the user wants to keep iterating — ask.
 
 ## Options worth knowing

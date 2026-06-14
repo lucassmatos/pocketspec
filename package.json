@@ -1,6 +1,6 @@
 {
   "name": "pocketspec",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Read your markdown docs on your phone over the local network, comment by tapping a paragraph, and let your AI agent read the comments back.",
   "bin": {
     "pocketspec": "server.js"
@@ -20,6 +20,7 @@
   "files": [
     "server.js",
     "public/",
+    "skill/",
     "CLAUDE.md"
   ],
   "engines": {
