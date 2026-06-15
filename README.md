@@ -4,11 +4,42 @@
 
 Point your AI agent (Claude, Cursor, whatever) at a folder, let it write specs while you do something else, and follow along from your phone over your local network. Spot a vague paragraph? Tap it and comment. The comment lands in a `.comments` file next to the doc — which the agent reads back to revise. The AI doc review loop, on the go.
 
+It's really an **agent skill** with a tiny zero-dependency server behind it: [install the skill](#quick-start--install-the-skill) with one command and your agent drives the whole thing — starting the server, handing you the URL, reading your comments back.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/lucassmatos/pocketspec/main/docs/demo.gif" alt="pocketspec demo: read a spec on your phone, tap a paragraph to comment, and the agent reads the comment back" width="320">
 </p>
 
-## Quick start
+## Quick start — install the skill
+
+The easiest way to use pocketspec is as a **skill your AI agent runs for you**. One command installs it:
+
+```bash
+npx pocketspec install-skill
+```
+
+This works across agents — it installs a native [Claude Code](https://claude.com/claude-code) skill **and** writes an `AGENTS.md` section that Codex, Cursor, Gemini, Windsurf, and others read. Then just tell your agent:
+
+> *"let me review the specs on my phone"*
+
+…and it starts the server pointed at your docs, hands you the phone URL, and later reads your comments back to revise. (First run fetches the package via `npx` — ~200 KB, zero dependencies.)
+
+```bash
+npx pocketspec install-skill --claude    # only the Claude Code skill
+npx pocketspec install-skill --agents    # only AGENTS.md (in the current folder)
+npx pocketspec install-skill --print     # just print the instructions, install nothing
+```
+
+## The comment loop
+
+- **Comment a passage:** tap any paragraph/block → a comment box opens → it shows up below the block with a bar marking the passage.
+- **General comment:** the floating 💬 button.
+- **Edit the doc:** the ✏️ button at the top opens the raw markdown; saving writes to the file.
+- Comments live in a sidecar `file.md.comments` (JSON) next to the `.md`. Easy for an agent to read: each comment stores the anchored passage, the text, and a timestamp. If the passage is later edited, the comment isn't lost — it moves to "General comments" with a reference to the original text.
+
+## Run it yourself (no agent)
+
+Prefer to drive it by hand? Point it at a folder:
 
 ```bash
 npx pocketspec ~/path/to/docs
@@ -21,31 +52,6 @@ npx pocketspec ~/project-a/docs ~/project-b/specs
 ```
 
 No install — `npx` fetches and runs it.
-
-## The comment loop
-
-- **Comment a passage:** tap any paragraph/block → a comment box opens → it shows up below the block with a bar marking the passage.
-- **General comment:** the floating 💬 button.
-- **Edit the doc:** the ✏️ button at the top opens the raw markdown; saving writes to the file.
-- Comments live in a sidecar `file.md.comments` (JSON) next to the `.md`. Easy for an agent to read: each comment stores the anchored passage, the text, and a timestamp. If the passage is later edited, the comment isn't lost — it moves to "General comments" with a reference to the original text.
-
-## Teach your AI agent the loop
-
-The real payoff is letting your coding agent run the whole loop: it writes specs, starts pocketspec pointed at the folder, hands you the phone URL, then reads your comments back and revises. One command installs that skill:
-
-```bash
-npx pocketspec install-skill
-```
-
-It works across agents — installs a native [Claude Code](https://claude.com/claude-code) skill (auto-triggers when you say "let me review this on my phone") **and** writes an `AGENTS.md` section that Codex, Cursor, Gemini, Windsurf, and others read.
-
-```bash
-npx pocketspec install-skill --claude    # only the Claude Code skill
-npx pocketspec install-skill --agents    # only AGENTS.md (in the current folder)
-npx pocketspec install-skill --print     # just print the instructions, install nothing
-```
-
-Then just tell your agent: *"let me review the specs on my phone."*
 
 ## Options
 
