@@ -55,11 +55,9 @@ Usage:
   pocketspec [folder ...] [--port N] [--read-only]
   pocketspec add <folder> [name]    register a persistent folder
   pocketspec list                    list registered folders
-  pocketspec install-skill           teach your AI agent to run the phone-review
-                                     loop (Claude Code skill + AGENTS.md for
-                                     Codex/Cursor/etc.; --print to just dump it)
 
 With no folder arguments, serves the folders saved via 'add'.
+Teach your agent the phone-review loop: npx skills add lucassmatos/pocketspec
   --port N        starting port (default 4321; tries the next free one if taken)
   --read-only     disable editing and comments (read-only)
   --password P    require a password (HTTP Basic Auth)
@@ -122,67 +120,6 @@ if (command === 'add') {
     console.log(`${i}  ${root.name}  ${root.path}`);
   }
   process.exit(0);
-} else if (command === 'install-skill') {
-  installSkill();
-  process.exit(0);
-}
-
-// Drops the bundled agent skill where coding agents look for it. Claude Code
-// gets a native skill (auto-triggers); everyone else (Codex, Cursor, Gemini,
-// Windsurf, ...) reads AGENTS.md in the project root.
-function installSkill() {
-  const skillSrc = path.join(ROOT_DIR, 'skill', 'SKILL.md');
-  if (!fs.existsSync(skillSrc)) {
-    console.error('bundled skill not found (expected skill/SKILL.md in the package)');
-    process.exit(1);
-  }
-  const skillMd = fs.readFileSync(skillSrc, 'utf8');
-
-  // --print just dumps the instructions (pipe them anywhere). The other flags
-  // pick targets; with none, auto: Claude if ~/.claude exists, plus AGENTS.md.
-  if (argv.includes('--print')) {
-    process.stdout.write(stripFrontmatter(skillMd));
-    return;
-  }
-  const wantClaude = argv.includes('--claude') || argv.includes('--all');
-  const wantAgents = argv.includes('--agents') || argv.includes('--all');
-  const explicit = wantClaude || wantAgents;
-  const doClaude = explicit ? wantClaude : fs.existsSync(path.join(os.homedir(), '.claude'));
-  const doAgents = explicit ? wantAgents : true;
-
-  const done = [];
-  if (doClaude) {
-    const dir = path.join(os.homedir(), '.claude', 'skills', 'pocketspec');
-    fs.mkdirSync(dir, { recursive: true });
-    const dest = path.join(dir, 'SKILL.md');
-    fs.writeFileSync(dest, skillMd);
-    done.push(`Claude Code skill  →  ${dest}`);
-  }
-  if (doAgents) {
-    const dest = path.resolve('AGENTS.md');
-    const marker = '## pocketspec (review markdown on your phone)';
-    const section = `${marker}\n\n${stripFrontmatter(skillMd).trim()}\n`;
-    const existing = fs.existsSync(dest) ? fs.readFileSync(dest, 'utf8') : '';
-    if (existing.includes(marker)) {
-      done.push(`AGENTS.md already has the pocketspec section, skipped  →  ${dest}`);
-    } else {
-      const base = existing ? existing.replace(/\s*$/, '') + '\n\n' : '# AGENTS.md\n\n';
-      fs.writeFileSync(dest, base + section);
-      done.push(`AGENTS.md (Codex, Cursor, Gemini, …)  →  ${dest}`);
-    }
-  }
-  console.log('Installed the pocketspec agent skill:');
-  for (const d of done) console.log('  - ' + d);
-  console.log('\nNow tell your agent: “let me review the specs on my phone”.');
-}
-
-// Strip a leading YAML frontmatter block (--- ... ---) from markdown.
-function stripFrontmatter(md) {
-  if (!md.startsWith('---')) return md;
-  const end = md.indexOf('\n---', 3);
-  if (end === -1) return md;
-  const nl = md.indexOf('\n', end + 1);
-  return md.slice(nl + 1).replace(/^\s+/, '');
 }
 
 // Ephemeral roots from folder arguments. If none given, fall back to config.

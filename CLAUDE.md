@@ -16,7 +16,6 @@ node server.js --help
 
 node server.js add ~/docs "Name"   # register a persistent root
 node server.js list                # list registered roots
-node server.js install-skill       # install the agent skill (Claude + AGENTS.md)
 
 npm test                           # node --test (security tests in test/)
 
@@ -27,7 +26,7 @@ node server.js ~/docs --password P # HTTP Basic Auth; prefer POCKETSPEC_PASSWORD
 
 No build or lint step — it's plain Node + static files. Tests are zero-dep (`node --test`, in `test/`, not published). For UI changes, run the server and open the printed Network URL.
 
-The agent skill is canonical in `skill/SKILL.md` (bundled in the npm package, installed by `install-skill`). The repo no longer keeps a `.claude/skills/` copy — edit `skill/SKILL.md`.
+The agent skill lives at `skills/pocketspec/SKILL.md` (the layout the [agent-skills](https://github.com/vercel-labs/skills) CLI discovers). It's distributed via `npx skills add lucassmatos/pocketspec` from GitHub — NOT bundled in the npm package. The npm package is just the server; the skill tells agents to run `npx pocketspec <folder>`.
 
 ## Architecture
 

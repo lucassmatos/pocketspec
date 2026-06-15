@@ -12,23 +12,17 @@ It's really an **agent skill** with a tiny zero-dependency server behind it: [in
 
 ## Quick start — install the skill
 
-The easiest way to use pocketspec is as a **skill your AI agent runs for you**. One command installs it:
+The easiest way to use pocketspec is as a **skill your AI agent runs for you**. Install it with the open [agent-skills](https://github.com/vercel-labs/skills) CLI, which drops it into the right place for whatever agent you use (Claude Code, Cursor, Codex, Copilot, Cline, and 70+ others):
 
 ```bash
-npx pocketspec install-skill
+npx skills add lucassmatos/pocketspec
 ```
 
-This works across agents — it installs a native [Claude Code](https://claude.com/claude-code) skill **and** writes an `AGENTS.md` section that Codex, Cursor, Gemini, Windsurf, and others read. Then just tell your agent:
+It auto-detects your installed agents (add `-g` to install globally). Then just tell your agent:
 
 > *"let me review the specs on my phone"*
 
-…and it starts the server pointed at your docs, hands you the phone URL, and later reads your comments back to revise. (First run fetches the package via `npx` — ~200 KB, zero dependencies.)
-
-```bash
-npx pocketspec install-skill --claude    # only the Claude Code skill
-npx pocketspec install-skill --agents    # only AGENTS.md (in the current folder)
-npx pocketspec install-skill --print     # just print the instructions, install nothing
-```
+…and it starts the server pointed at your docs, hands you the phone URL, and later reads your comments back to revise. (First run fetches the `pocketspec` package via `npx` — ~200 KB, zero dependencies.)
 
 ## The comment loop
 
