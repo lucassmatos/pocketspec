@@ -68,8 +68,8 @@ you read comments back and revise  →  repeat
    >   marker bar on the passage.
    > - **✏️ (top)** edits the raw markdown and saves; **💬 (floating)** leaves a
    >   general comment not tied to a paragraph.
-   > - The **back button works** (folder ↔ doc), and it keeps working **offline**
-   >   once loaded. Rotate to landscape for wide tables or code blocks.
+   > - The **back button works** (folder ↔ doc). Rotate to landscape for wide
+   >   tables or code blocks.
 
 5. **Run the review loop.** When the user says they've commented (or asks you to
    check / "read my comments"):
@@ -110,8 +110,9 @@ layer.
 
 ## Notes
 
-- Zero install — `npx` fetches and runs it. Works offline on the phone once
-  loaded (renderer is vendored).
+- Zero install — `npx` fetches and runs it. No third-party CDNs: the page and
+  the markdown renderer are served entirely from the laptop (vendored), so there
+  are no external requests.
 - Only `.md` files and folders are listed (dotfiles ignored); images referenced
   by docs are served too.
 - Rendered markdown is sanitized, and path traversal is blocked — but it's still

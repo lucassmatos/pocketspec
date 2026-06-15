@@ -118,7 +118,7 @@ Tips:
 
 ## How it works
 
-- Zero npm dependencies. Node stdlib on the server; [`marked`](https://github.com/markedjs/marked) (MIT) and [`DOMPurify`](https://github.com/cure53/DOMPurify) (Apache-2.0/MPL-2.0) vendored in `public/`, rendering in the browser, so it works even with no internet on your phone.
+- Zero npm dependencies, and no third-party CDNs: the whole page — including the markdown renderer — is served straight from your laptop. [`marked`](https://github.com/markedjs/marked) (MIT) and [`DOMPurify`](https://github.com/cure53/DOMPurify) (Apache-2.0/MPL-2.0) are vendored in `public/`, so there are no external requests and nothing phoning home.
 - Lists only folders and `.md` files (dotfiles ignored). Images referenced by docs are served via `/api/raw`.
 - Hash-based navigation (`#/0/folder/doc.md`), so your phone's back button works. PWA: you can "Add to Home Screen" and it opens as an app.
 - **Path-traversal protection**: it never serves anything outside the folders you pass.
