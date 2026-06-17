@@ -19,6 +19,12 @@ allowed-tools:
 
 # pocketspec — write specs, review them on your phone, revise
 
+<!-- SKILL_VERSION: 0.4.0 — the pocketspec release this skill shipped with. Bump on every release. -->
+**This skill targets pocketspec `0.4.0`.** The server prints its own version
+(it always runs `@latest`, so its version is the current one). If it reports a
+version newer than the one above, your installed skill is behind — see
+[Staying current](#staying-current).
+
 [pocketspec](https://www.npmjs.com/package/pocketspec) lets the user read your
 markdown on their phone over the local network and tap a paragraph to comment.
 Comments land in a `<file>.md.comments` JSON sidecar next to the doc — which you
@@ -71,6 +77,14 @@ you read comments back and revise  →  repeat
       e.g. `Network:  http://192.168.x.x:4321/#/2`. Pass an absolute path and a
       short, clear name so the user can tell it apart from other windows'
       folders. Pass a single `.md` file to deep-link directly to that doc.
+
+   d. **Version check.** `status` prints `pocketspec X.Y.Z` (the current
+      ecosystem version — the server is always `@latest`). Compare it to the
+      `SKILL_VERSION` this skill targets (see the top of this file). If the
+      server's version is **newer**, your installed skill is stale: finish the
+      task normally, then tell the user once, e.g.
+      > ℹ️ Your pocketspec skill is behind (skill targets `0.4.0`, server is
+      > `X.Y.Z`). Update it with `npx skills add lucassmatos/pocketspec`.
 
    - Running from source instead of npx? Use `node server.js status` /
      `node server.js` / `node server.js attach …` the same way.
@@ -141,6 +155,19 @@ install it on laptop + phone (same account), then open the laptop's Tailscale IP
 (`tailscale ip -4`, the `100.x.y.z` address) or its `*.ts.net` MagicDNS name on
 the phone — works over cellular, nothing public. Add `--password` for a second
 layer.
+
+## Staying current
+
+Two things update on different schedules:
+
+- **The server** auto-updates. Every command here runs `npx pocketspec@latest`,
+  so the newest published server is fetched at runtime — nothing to do.
+- **This skill** does NOT auto-update. It's a static copy installed via
+  `npx skills add lucassmatos/pocketspec`; nothing notifies the user when it
+  changes. That's why the version check in step 3d exists: the always-latest
+  server reports the current version, and you compare it to this skill's
+  `SKILL_VERSION` to catch a stale skill. When it's behind, the user re-runs
+  `npx skills add lucassmatos/pocketspec` to pull the latest skill.
 
 ## Notes
 

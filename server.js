@@ -10,6 +10,15 @@ const crypto = require('crypto');
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 
+// The running server is always the latest published version (the skill invokes
+// `npx pocketspec@latest`), so this doubles as "the current ecosystem version".
+// The skill carries the version it shipped with and compares against this to
+// tell the user when their installed skill is behind. npm always ships
+// package.json in the tarball, even though it's not in the `files` allowlist.
+const VERSION = (() => {
+  try { return require('./package.json').version; } catch { return '0.0.0'; }
+})();
+
 // Persist registered roots in the user's config dir, not inside the package —
 // when run via `npx`, the package dir is ephemeral and often read-only.
 const CONFIG_DIR = process.env.XDG_CONFIG_HOME
@@ -115,7 +124,8 @@ Usage:
   pocketspec                         run the shared instance (serves attached + saved folders)
   pocketspec attach <folder|file>    add a folder to the running shared instance, print its phone URL
   pocketspec detach <folder|file>    remove a folder from the shared instance
-  pocketspec status [--json]         show the running shared instance (URL/port), if any
+  pocketspec status [--json]         show the running shared instance (URL/port) + current version
+  pocketspec version                 print the current pocketspec version
   pocketspec add <folder> [name]     register a persistent folder
   pocketspec list                    list registered folders
 
@@ -145,6 +155,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (arg === '--port') options.port = Number(argv[++i]);
   else if (arg.startsWith('--port=')) options.port = Number(arg.slice('--port='.length));
   else if (arg === '--help' || arg === '-h') { printHelp(); process.exit(0); }
+  else if (arg === '--version' || arg === '-v') { console.log(VERSION); process.exit(0); }
   else if (arg === 'serve') { /* legacy no-op subcommand */ }
   else positional.push(arg);
 }
@@ -185,18 +196,24 @@ if (command === 'add') {
     console.log(`${i}  ${root.name}  ${root.path}`);
   }
   process.exit(0);
+} else if (command === 'version') {
+  console.log(VERSION);
+  process.exit(0);
 } else if (command === 'status') {
   // Discover the shared instance. Used by tooling to decide attach-vs-start.
+  // `version` is the current ecosystem version (this server is always @latest);
+  // compare it against the skill's own version to detect a stale skill.
   const inst = readInstance();
   if (argv.includes('--json')) {
-    console.log(JSON.stringify(inst || { running: false }));
+    console.log(JSON.stringify({ version: VERSION, ...(inst || { running: false }) }));
     process.exit(inst ? 0 : 1);
   }
+  console.log(`pocketspec ${VERSION}`);
   if (!inst) {
     console.log('No shared pocketspec instance is running.');
     process.exit(1);
   }
-  console.log(`pocketspec shared instance running (pid ${inst.pid})\n`);
+  console.log(`shared instance running (pid ${inst.pid})\n`);
   console.log(`  Local:    ${inst.local}`);
   for (const u of inst.network || []) console.log(`  Network:  ${u}   ← open this on your phone`);
   process.exit(0);
@@ -567,7 +584,7 @@ server.on('listening', () => {
   server.removeAllListeners('error');
   const port = server.address().port;
   const roots = currentRoots();
-  console.log(`pocketspec running!${READ_ONLY ? '  (read-only)' : ''}${PASSWORD ? '  (password protected)' : ''}\n`);
+  console.log(`pocketspec ${VERSION} running!${READ_ONLY ? '  (read-only)' : ''}${PASSWORD ? '  (password protected)' : ''}\n`);
   console.log(`  Local:    http://localhost:${port}`);
   for (const addr of lanAddresses()) {
     console.log(`  Network:  http://${addr}:${port}   ← open this on your phone`);
