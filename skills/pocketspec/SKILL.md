@@ -41,25 +41,45 @@ you read comments back and revise  →  repeat
    via `npx` (~200 KB, cached after the first use; zero npm dependencies). Give
    the user a one-line heads-up and proceed unless they object.
 
-3. **Start the server in the background** so it keeps serving across turns:
-   ```bash
-   npx -y pocketspec@latest /abs/path/to/docs
-   ```
-   - Run it as a background task (do not block the turn on it).
-   - It prints a few lines; grab the one that looks like
-     `Network:  http://192.168.x.x:4321`. That IP+port is what the phone uses.
-   - If the user is already running it from source, use
-     `node server.js /abs/path/to/docs` instead.
-   - Pass the folder as a **path argument** (e.g. `npx -y pocketspec@latest .`),
-     not bare `npx pocketspec` — bare with no args serves only folders the user
-     previously registered with `pocketspec add`.
-   - Port busy / want a specific one? Use `PORT=8080 npx -y pocketspec@latest
-     <folder>` (the `PORT` env avoids npm's noisy `--port` flag warning).
+3. **Attach to the shared instance — don't spawn your own.** Every Claude
+   window shares ONE pocketspec on ONE port; you just add your folder to it. So
+   multiple windows don't each end up on a different port.
+
+   a. **Check if it's already running:**
+      ```bash
+      npx -y pocketspec@latest status
+      ```
+      Prints the running instance's URL/port, or "No shared pocketspec instance
+      is running." (exit 1).
+
+   b. **If none is running, start the shared daemon** as a background task (do
+      not block the turn on it). Run it with **no folder argument** — that's the
+      shared instance:
+      ```bash
+      npx -y pocketspec@latest
+      ```
+      Then re-run `status` to confirm it's up. (Starting a second one while one
+      is already running just prints the existing URL and exits — it won't
+      spawn a duplicate.)
+
+   c. **Attach the folder (or a single file) you want reviewed:**
+      ```bash
+      npx -y pocketspec@latest attach /abs/path/to/docs "Project name"
+      ```
+      This registers the folder with the running instance (picked up live, no
+      restart) and prints the phone URL with a **deep-link straight to it**,
+      e.g. `Network:  http://192.168.x.x:4321/#/2`. Pass an absolute path and a
+      short, clear name so the user can tell it apart from other windows'
+      folders. Pass a single `.md` file to deep-link directly to that doc.
+
+   - Running from source instead of npx? Use `node server.js status` /
+     `node server.js` / `node server.js attach …` the same way.
 
 4. **Send the URL to the user in chat,** with a short "best way to view" note.
-   Post the `Network:` URL prominently so they can tap it on their phone:
+   Use the deep-link `Network:` URL that `attach` printed so they land right on
+   your folder:
 
-   > 📱 Open this on your phone (same Wi-Fi): **http://192.168.x.x:4321**
+   > 📱 Open this on your phone (same Wi-Fi): **http://192.168.x.x:4321/#/2**
    >
    > For the best experience:
    > - **"Add to Home Screen"** — it opens fullscreen like a native app (PWA),
@@ -85,18 +105,32 @@ you read comments back and revise  →  repeat
      deletes from the UI), or, if the user asks, remove resolved entries from
      the sidecar JSON.
 
-6. **Stop when done.** Kill the background server task once the review is over,
-   or leave it running if the user wants to keep iterating — ask.
+6. **When done, detach — don't kill the shared server.** Other windows may be
+   serving their own folders on it:
+   ```bash
+   npx -y pocketspec@latest detach /abs/path/to/docs
+   ```
+   Only stop the background daemon if the user explicitly wants everything torn
+   down. It cleans up its own state (and drops all attached folders) on exit.
 
 ## Options worth knowing
 
-- `--read-only` — serve for reading only (no edits, no comments). Good when you
-  just want them to read, not annotate.
+The shared instance picks a free port automatically (4321, then the next free
+one) — `status`/`attach` always report the real one, so you never guess.
+
+`--read-only`, `--password`, and `--port` are **per-process**, so they don't
+apply to the shared instance. If the user wants any of them, run a **private,
+independent instance** by passing the folder as an argument (own port, not
+shared, not attachable):
+
+- `--read-only` — reading only, no edits or comments:
+  `npx -y pocketspec@latest /abs/path --read-only`
 - `--password P` (or env `POCKETSPEC_PASSWORD=P`) — require a password. Prefer
   the env var so it doesn't land in shell history.
-- `--port N` — starting port (default 4321; falls back to the next free one).
+- `--port N` — pin a specific starting port.
 - `--host H` — allow an extra `Host` header (the server rejects unknown hosts to
-  prevent DNS rebinding; loopback/LAN/Tailscale are allowed by default).
+  prevent DNS rebinding; loopback/LAN/Tailscale are allowed by default). This
+  works on the shared instance too.
 
 ## Remote access (not just same Wi-Fi)
 

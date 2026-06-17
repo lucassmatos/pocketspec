@@ -19,6 +19,17 @@ const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 // Older versions wrote config.json next to server.js; read it as a fallback.
 const LEGACY_CONFIG_PATH = path.join(ROOT_DIR, 'config.json');
 
+// Shared-daemon coordination files. `pocketspec` with no folder args is the
+// single shared instance every agent/window converges on; these two files let
+// other processes discover it and feed it folders without spawning a new server.
+//   instance.json  — { pid, port, local, network[], startedAt }, written on
+//                     listen and removed on exit. The discovery record.
+//   live-roots.json — ad-hoc folders attached at runtime. Served alongside the
+//                     persisted config roots, read live per request, and wiped
+//                     when the shared daemon exits (ephemeral by design).
+const INSTANCE_PATH = path.join(CONFIG_DIR, 'instance.json');
+const LIVE_ROOTS_PATH = path.join(CONFIG_DIR, 'live-roots.json');
+
 // ---------- config (persisted roots, used by the `add`/`list` subcommands) ----------
 
 function loadConfig() {
@@ -39,6 +50,54 @@ function saveConfig(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n');
 }
 
+// ---------- shared-daemon state (live roots + instance record) ----------
+
+function loadLiveRoots() {
+  if (!fs.existsSync(LIVE_ROOTS_PATH)) return { roots: [] };
+  try {
+    const data = JSON.parse(fs.readFileSync(LIVE_ROOTS_PATH, 'utf8'));
+    return { roots: Array.isArray(data.roots) ? data.roots : [] };
+  } catch {
+    return { roots: [] };
+  }
+}
+
+function saveLiveRoots(data) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  // Write-then-rename so a concurrent reader never sees a half-written file
+  // (two windows may attach at once).
+  const tmp = `${LIVE_ROOTS_PATH}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');
+  fs.renameSync(tmp, LIVE_ROOTS_PATH);
+}
+
+// Best-effort realpath; falls back to a plain resolve for not-yet-existing paths
+// so dedup/lookup still work on a stable key.
+function rootKey(p) {
+  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+}
+
+function isPidAlive(pid) {
+  if (!pid) return false;
+  try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+}
+
+// Returns the live instance record, or null. Clears a stale file (dead pid).
+function readInstance() {
+  if (!fs.existsSync(INSTANCE_PATH)) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(INSTANCE_PATH, 'utf8'));
+    if (data && isPidAlive(data.pid)) return data;
+  } catch { /* fall through to clear */ }
+  try { fs.unlinkSync(INSTANCE_PATH); } catch {}
+  return null;
+}
+
+function writeInstance(info) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(INSTANCE_PATH, JSON.stringify(info, null, 2) + '\n');
+}
+
 // ---------- CLI parsing ----------
 // Usage:
 //   pocketspec [folder ...] [--port N] [--read-only]   serve folders (ephemeral)
@@ -53,10 +112,16 @@ function printHelp() {
 
 Usage:
   pocketspec [folder ...] [--port N] [--read-only]
-  pocketspec add <folder> [name]    register a persistent folder
+  pocketspec                         run the shared instance (serves attached + saved folders)
+  pocketspec attach <folder|file>    add a folder to the running shared instance, print its phone URL
+  pocketspec detach <folder|file>    remove a folder from the shared instance
+  pocketspec status [--json]         show the running shared instance (URL/port), if any
+  pocketspec add <folder> [name]     register a persistent folder
   pocketspec list                    list registered folders
 
-With no folder arguments, serves the folders saved via 'add'.
+With folder arguments, runs a private, independent instance on its own port.
+With none, runs the single shared instance: serves the folders saved via 'add'
+plus any attached at runtime, and every 'pocketspec' / 'attach' converges on it.
 Teach your agent the phone-review loop: npx skills add lucassmatos/pocketspec
   --port N        starting port (default 4321; tries the next free one if taken)
   --read-only     disable editing and comments (read-only)
@@ -120,6 +185,76 @@ if (command === 'add') {
     console.log(`${i}  ${root.name}  ${root.path}`);
   }
   process.exit(0);
+} else if (command === 'status') {
+  // Discover the shared instance. Used by tooling to decide attach-vs-start.
+  const inst = readInstance();
+  if (argv.includes('--json')) {
+    console.log(JSON.stringify(inst || { running: false }));
+    process.exit(inst ? 0 : 1);
+  }
+  if (!inst) {
+    console.log('No shared pocketspec instance is running.');
+    process.exit(1);
+  }
+  console.log(`pocketspec shared instance running (pid ${inst.pid})\n`);
+  console.log(`  Local:    ${inst.local}`);
+  for (const u of inst.network || []) console.log(`  Network:  ${u}   ← open this on your phone`);
+  process.exit(0);
+} else if (command === 'attach') {
+  // Add a folder (or a file's folder) to the shared instance's live roots and
+  // print the phone URL. The running daemon picks it up on the next request.
+  const target = positional[1];
+  if (!target) {
+    console.error('Usage: pocketspec attach <folder|file> [name]');
+    process.exit(1);
+  }
+  const resolved = path.resolve(target);
+  if (!fs.existsSync(resolved)) {
+    console.error(`Path does not exist: ${resolved}`);
+    process.exit(1);
+  }
+  const isFile = fs.statSync(resolved).isFile();
+  const rootPath = isFile ? path.dirname(resolved) : resolved;
+  const fileRel = isFile ? path.basename(resolved) : null;
+  const name = positional[2] || path.basename(rootPath);
+  const key = rootKey(rootPath);
+
+  const live = loadLiveRoots();
+  if (!live.roots.some((r) => rootKey(r.path) === key)) {
+    live.roots.push({ name, path: rootPath });
+    saveLiveRoots(live);
+  }
+
+  const index = sharedRoots().findIndex((r) => rootKey(r.path) === key);
+  const inst = readInstance();
+  if (!inst) {
+    console.log(`Added "${name}" to the shared roots.`);
+    console.log('No shared instance is running yet — start one with:  pocketspec');
+    process.exit(0);
+  }
+  const hash = fileRel ? `#/${index}/${encodeURIComponent(fileRel)}` : `#/${index}`;
+  console.log(`Attached "${name}" to the shared instance.\n`);
+  for (const u of inst.network || []) console.log(`  Network:  ${u}/${hash}   ← open this on your phone`);
+  console.log(`  Local:    ${inst.local}/${hash}`);
+  process.exit(0);
+} else if (command === 'detach') {
+  const target = positional[1];
+  if (!target) {
+    console.error('Usage: pocketspec detach <folder|file>');
+    process.exit(1);
+  }
+  const resolved = path.resolve(target);
+  let rootPath = resolved;
+  try {
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) rootPath = path.dirname(resolved);
+  } catch {}
+  const key = rootKey(rootPath);
+  const live = loadLiveRoots();
+  const before = live.roots.length;
+  live.roots = live.roots.filter((r) => rootKey(r.path) !== key);
+  saveLiveRoots(live);
+  console.log(before === live.roots.length ? `Not attached: ${rootPath}` : `Detached: ${rootPath}`);
+  process.exit(0);
 }
 
 // Ephemeral roots from folder arguments. If none given, fall back to config.
@@ -136,9 +271,30 @@ if (positional.length) {
   }
 }
 
-// Active roots: ephemeral CLI folders if given, else the persisted config.
+// No folder args → this is the shared daemon (writes instance.json, serves live
+// roots, enforced as a singleton). Folder args → a private, independent instance
+// that ignores all of that.
+const SHARED = RUNTIME_ROOTS === null;
+
+// The shared daemon (no folder args) serves the persisted config roots plus any
+// folders attached at runtime, deduped by realpath. Read live per request, so a
+// `pocketspec attach` shows up without a restart.
+function sharedRoots() {
+  const seen = new Set();
+  const out = [];
+  for (const r of [...loadConfig().roots, ...loadLiveRoots().roots]) {
+    const key = rootKey(r.path);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
+// Active roots: ephemeral CLI folders if given (a private instance), else the
+// shared config + live roots.
 function currentRoots() {
-  return RUNTIME_ROOTS || loadConfig().roots;
+  return RUNTIME_ROOTS || sharedRoots();
 }
 
 // ---------- helpers ----------
@@ -417,10 +573,20 @@ server.on('listening', () => {
     console.log(`  Network:  http://${addr}:${port}   ← open this on your phone`);
   }
   if (!roots.length) {
-    console.log('\nNo folders. Pass a folder: pocketspec <folder>  (or register one: pocketspec add <folder>)');
+    console.log('\nNo folders yet. Attach one: pocketspec attach <folder>  (or register a persistent one: pocketspec add <folder>)');
   } else {
     console.log('\nFolders:');
     for (const root of roots) console.log(`  - ${root.name}: ${root.path}`);
+  }
+  // Publish the discovery record so other windows attach instead of spawning
+  // their own server on a new port.
+  if (SHARED) {
+    const network = lanAddresses().map((addr) => `http://${addr}:${port}`);
+    try {
+      writeInstance({ pid: process.pid, port, local: `http://localhost:${port}`, network, startedAt: Date.now() });
+    } catch (err) {
+      console.error(`(could not write instance file: ${err.message})`);
+    }
   }
 });
 
@@ -435,6 +601,35 @@ function startListening(port, attemptsLeft) {
     }
   });
   server.listen(port, '0.0.0.0');
+}
+
+// When the shared daemon exits, drop the discovery record and clear the live
+// roots (they're ephemeral — nothing is left to serve them). Guard on pid so a
+// later daemon's file is never clobbered by a stale process.
+function cleanupShared() {
+  if (!SHARED) return;
+  let inst = null;
+  try { inst = JSON.parse(fs.readFileSync(INSTANCE_PATH, 'utf8')); } catch {}
+  if (inst && inst.pid === process.pid) {
+    try { fs.unlinkSync(INSTANCE_PATH); } catch {}
+    try { saveLiveRoots({ roots: [] }); } catch {}
+  }
+}
+
+if (SHARED) {
+  // Singleton: if a live shared instance already exists, point at it and exit
+  // rather than spawning a second server on a fallback port.
+  const existing = readInstance();
+  if (existing) {
+    console.log(`A shared pocketspec instance is already running (pid ${existing.pid}).\n`);
+    console.log(`  Local:    ${existing.local}`);
+    for (const u of existing.network || []) console.log(`  Network:  ${u}   ← open this on your phone`);
+    console.log('\nAttach a folder to it:  pocketspec attach <folder>');
+    process.exit(0);
+  }
+  process.on('exit', cleanupShared);
+  process.on('SIGINT', () => process.exit(0));
+  process.on('SIGTERM', () => process.exit(0));
 }
 
 startListening(PORT_PREFERRED, 10);
